@@ -1,232 +1,299 @@
-'use client';
-import React, { useState, FormEvent, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { account } from '@/lib/appwrite';
-import { useRouter } from 'next/navigation';
+"use client";
+import React, { useState, useEffect } from "react";
+import { useForm, SubmitHandler } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useAuth } from "@/context/AuthContext";
+import { account } from "@/lib/appwrite";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+
+import { toast } from "sonner";
+
+// Schema for updating name
+const nameSchema = z.object({
+  name: z.string().min(1, { message: "Name is required" }),
+});
+type NameInputs = z.infer<typeof nameSchema>;
+
+// Schema for updating email
+const emailSchema = z.object({
+  email: z.string().email({ message: "Invalid email address" }),
+  currentPassword: z
+    .string()
+    .min(1, { message: "Current password is required" }),
+});
+type EmailInputs = z.infer<typeof emailSchema>;
+
+// Schema for updating password
+const passwordSchema = z
+  .object({
+    currentPassword: z
+      .string()
+      .min(1, { message: "Current password is required" }),
+    newPassword: z
+      .string()
+      .min(8, { message: "New password must be at least 8 characters" }),
+    confirmNewPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmNewPassword, {
+    message: "New passwords do not match",
+    path: ["confirmNewPassword"],
+  });
+type PasswordInputs = z.infer<typeof passwordSchema>;
 
 const ProfilePage = () => {
-  const { user, loading, login, checkUser } = useAuth();
+  const { user, loading, checkUser } = useAuth();
   const router = useRouter();
+  const [error, setError] = useState<boolean>();
 
-  const [name, setName] = useState(user?.name || '');
-  const [email, setEmail] = useState(user?.email || '');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const nameForm = useForm<NameInputs>({
+    resolver: zodResolver(nameSchema),
+    defaultValues: {
+      name: user?.name || "",
+    },
+  });
 
-  const [nameMessage, setNameMessage] = useState<string | null>(null);
-  const [emailMessage, setEmailMessage] = useState<string | null>(null);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const emailForm = useForm<EmailInputs>({
+    resolver: zodResolver(emailSchema),
+    defaultValues: {
+      email: user?.email || "",
+      currentPassword: "",
+    },
+  });
+
+  const passwordForm = useForm<PasswordInputs>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmNewPassword: "",
+    },
+  });
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/login');
+      setError(true);
     }
     if (user) {
-      setName(user.name || '');
-      setEmail(user.email || '');
+      nameForm.reset({ name: user.name || "" });
+      emailForm.reset({ email: user.email || "", currentPassword: "" });
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, nameForm, emailForm]);
 
-  const handleUpdateName = async (e: FormEvent) => {
-    e.preventDefault();
-    setNameMessage(null);
-    if (!user) return;
-
+  const handleUpdateName: SubmitHandler<NameInputs> = async (data) => {
     try {
-      await account.updateName(name);
+      await account.updateName(data.name);
       await checkUser(); // Refresh user data in context
-      setNameMessage('Name updated successfully!');
-    } catch (err: any) {
-      console.error('Failed to update name:', err);
-      setNameMessage(`Error updating name: ${err.message}`);
+      toast.success("Name updated successfully!");
+    } catch (err: unknown) {
+      console.error("Failed to update name:", err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(`Error updating name: ${errorMessage}`);
     }
   };
 
-  const handleUpdateEmail = async (e: FormEvent) => {
-    e.preventDefault();
-    setEmailMessage(null);
-    if (!user) return;
-
+  const handleUpdateEmail: SubmitHandler<EmailInputs> = async (data) => {
     try {
-      // Appwrite updateEmail requires current password for security
-      // For simplicity here, we're assuming the user is logged in and session is active.
-      // In a real app, you might re-authenticate or prompt for current password.
-      await account.updateEmail(email, currentPassword);
-      await account.createVerification('/verify-email'); // Send verification to new email
-      setEmailMessage('Email updated. Please check your new email for a verification link.');
-      await checkUser(); // Refresh user data in context
-    } catch (err: any) {
-      console.error('Failed to update email:', err);
-      setEmailMessage(`Error updating email: ${err.message}`);
+      await account.updateEmail(data.email, data.currentPassword);
+      await account.createVerification("http://localhost:3000/verify-email");
+      toast.success(
+        "Email updated. Please check your new email for a verification link."
+      );
+      await checkUser();
+      emailForm.reset({ ...data, currentPassword: "" });
+    } catch (err: unknown) {
+      console.error("Failed to update email:", err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(`Error updating email: ${errorMessage}`);
     }
   };
 
-  const handleUpdatePassword = async (e: FormEvent) => {
-    e.preventDefault();
-    setPasswordMessage(null);
-    if (!user) return;
-
-    if (newPassword.length < 8) {
-      setPasswordMessage('New password must be at least 8 characters long.');
-      return;
-    }
-    if (newPassword !== confirmNewPassword) {
-      setPasswordMessage('New passwords do not match.');
-      return;
-    }
-
+  const handleUpdatePassword: SubmitHandler<PasswordInputs> = async (data) => {
     try {
-      await account.updatePassword(newPassword, currentPassword);
-      setPasswordMessage('Password updated successfully!');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmNewPassword('');
-    } catch (err: any) {
-      console.error('Failed to update password:', err);
-      setPasswordMessage(`Error updating password: ${err.message}`);
+      await account.updatePassword(data.newPassword, data.currentPassword);
+      toast.success("Password updated successfully!");
+      passwordForm.reset({
+        currentPassword: "",
+        newPassword: "",
+        confirmNewPassword: "",
+      });
+    } catch (err: unknown) {
+      console.error("Failed to update password:", err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(`Error updating password: ${errorMessage}`);
     }
   };
 
   if (loading || !user) {
     return <div className="container mx-auto p-4">Loading profile...</div>;
   }
-
+  if (error) {
+    return <p>you&apos;re not logged in, log in first</p>;
+  }
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Profile Settings</h1>
 
       {/* Update Name Form */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-        <h2 className="text-2xl font-semibold mb-4">Update Name</h2>
-        <form onSubmit={handleUpdateName}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-neutral-700" htmlFor="profileName">
-              Name
-            </label>
-            <input
-              className="w-full p-2 mt-1 bg-neutral-100 border border-neutral-300 rounded-md text-neutral-900 focus:ring-primary focus:border-primary"
-              type="text"
-              id="profileName"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              required
-            />
-          </div>
-          {nameMessage && (
-            <div className={`p-3 rounded-md mb-4 text-sm ${nameMessage.startsWith('Error') ? 'bg-error/20 text-error' : 'bg-success/20 text-success'}`}>
-              {nameMessage}
-            </div>
-          )}
-          <button
-            className="bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded transition-colors duration-200"
-            type="submit"
-          >
-            Update Name
-          </button>
-        </form>
-      </div>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Update Name</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...nameForm}>
+            <form
+              onSubmit={nameForm.handleSubmit(handleUpdateName)}
+              className="space-y-4"
+            >
+              <FormField
+                control={nameForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input id="profileName" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={nameForm.formState.isSubmitting}>
+                Update Name
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
 
       {/* Update Email Form */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-        <h2 className="text-2xl font-semibold mb-4">Update Email</h2>
-        <form onSubmit={handleUpdateEmail}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-neutral-700" htmlFor="profileEmail">
-              Email
-            </label>
-            <input
-              className="w-full p-2 mt-1 bg-neutral-100 border border-neutral-300 rounded-md text-neutral-900 focus:ring-primary focus:border-primary"
-              type="email"
-              id="profileEmail"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-neutral-700" htmlFor="currentPasswordEmail">
-              Current Password (for email change)
-            </label>
-            <input
-              className="w-full p-2 mt-1 bg-neutral-100 border border-neutral-300 rounded-md text-neutral-900 focus:ring-primary focus:border-primary"
-              type="password"
-              id="currentPasswordEmail"
-              value={currentPassword}
-              onChange={e => setCurrentPassword(e.target.value)}
-              required
-            />
-          </div>
-          {emailMessage && (
-            <div className={`p-3 rounded-md mb-4 text-sm ${emailMessage.startsWith('Error') ? 'bg-error/20 text-error' : 'bg-success/20 text-success'}`}>
-              {emailMessage}
-            </div>
-          )}
-          <button
-            className="bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded transition-colors duration-200"
-            type="submit"
-          >
-            Update Email
-          </button>
-        </form>
-      </div>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Update Email</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...emailForm}>
+            <form
+              onSubmit={emailForm.handleSubmit(handleUpdateEmail)}
+              className="space-y-4"
+            >
+              <FormField
+                control={emailForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input id="profileEmail" type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={emailForm.control}
+                name="currentPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Current Password (for email change)</FormLabel>
+                    <FormControl>
+                      <Input
+                        id="currentPasswordEmail"
+                        type="password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={emailForm.formState.isSubmitting}>
+                Update Email
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
 
       {/* Update Password Form */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h2 className="text-2xl font-semibold mb-4">Update Password</h2>
-        <form onSubmit={handleUpdatePassword}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-neutral-700" htmlFor="currentPasswordPassword">
-              Current Password
-            </label>
-            <input
-              className="w-full p-2 mt-1 bg-neutral-100 border border-neutral-300 rounded-md text-neutral-900 focus:ring-primary focus:border-primary"
-              type="password"
-              id="currentPasswordPassword"
-              value={currentPassword}
-              onChange={e => setCurrentPassword(e.target.value)}
-              required
-            />
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-neutral-700" htmlFor="newPassword">
-              New Password
-            </label>
-            <input
-              className="w-full p-2 mt-1 bg-neutral-100 border border-neutral-300 rounded-md text-neutral-900 focus:ring-primary focus:border-primary"
-              type="password"
-              id="newPassword"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              required
-            />
-          </div>
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-neutral-700" htmlFor="confirmNewPassword">
-              Confirm New Password
-            </label>
-            <input
-              className="w-full p-2 mt-1 bg-neutral-100 border border-neutral-300 rounded-md text-neutral-900 focus:ring-primary focus:border-primary"
-              type="password"
-              id="confirmNewPassword"
-              value={confirmNewPassword}
-              onChange={e => setConfirmNewPassword(e.target.value)}
-              required
-            />
-          </div>
-          {passwordMessage && (
-            <div className={`p-3 rounded-md mb-4 text-sm ${passwordMessage.startsWith('Error') ? 'bg-error/20 text-error' : 'bg-success/20 text-success'}`}>
-              {passwordMessage}
-            </div>
-          )}
-          <button
-            className="bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded transition-colors duration-200"
-            type="submit"
-          >
-            Update Password
-          </button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Update Password</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...passwordForm}>
+            <form
+              onSubmit={passwordForm.handleSubmit(handleUpdatePassword)}
+              className="space-y-4"
+            >
+              <FormField
+                control={passwordForm.control}
+                name="currentPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Current Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        id="currentPasswordPassword"
+                        type="password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="newPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>New Password</FormLabel>
+                    <FormControl>
+                      <Input id="newPassword" type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="confirmNewPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm New Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        id="confirmNewPassword"
+                        type="password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                disabled={passwordForm.formState.isSubmitting}
+              >
+                Update Password
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   );
 };

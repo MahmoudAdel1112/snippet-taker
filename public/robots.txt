@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Disallow: /profile
+Disallow: /mysnippets
+Disallow: /snippets/new
+Disallow: /snippets/*/edit

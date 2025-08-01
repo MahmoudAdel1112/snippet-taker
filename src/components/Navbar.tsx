@@ -1,8 +1,22 @@
 "use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { account } from "@/lib/appwrite";
-import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Menu } from "lucide-react";
+import { ThemeToggleButton } from "./ThemeToggleButton";
 
 const Navbar = () => {
   const { user, loading, logout } = useAuth();
@@ -18,41 +32,104 @@ const Navbar = () => {
     }
   };
 
+  const getInitials = (name: string = "") => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase();
+  };
+
   return (
-    <nav className="bg-primary text-white p-4">
-      <div className="container mx-auto flex justify-between items-center">
-        <Link href="/" className="text-2xl font-bold">
-          Snippet Library
-        </Link>
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex h-14 items-center justify-between px-4 md:px-6 w-full">
         <div className="flex items-center">
+          <div className="mr-4 hidden md:flex">
+            <Link href="/" className="mr-6 flex items-center space-x-2">
+              <span className="font-bold">SnippetLib</span>
+            </Link>
+            <nav className="flex items-center space-x-6 text-sm font-medium">
+              <Link href="/dashboard">Browse</Link>
+              {user && <Link href="/mysnippets">My Snippets</Link>}
+              {user && <Link href="/snippets/new">New Snippet</Link>}
+            </nav>
+          </div>
+
+          {/* Mobile Menu */}
+          <div className="md:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left">
+                <nav className="grid gap-6 text-lg font-medium">
+                  <Link href="/" className="font-bold">SnippetLib</Link>
+                  <Link href="/dashboard">Browse</Link>
+                  {user && <Link href="/mysnippets">My Snippets</Link>}
+                  {user && <Link href="/snippets/new">New Snippet</Link>}
+                </nav>
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end space-x-4">
+          <ThemeToggleButton />
           {loading ? (
-            <div className="text-white">Loading...</div>
+            <div className="h-8 w-20 animate-pulse rounded-md bg-muted"></div>
           ) : user ? (
-            <>
-              <Link href="/mysnippets" className="mr-4 hover:text-gray-300">
-                My Snippets
-              </Link>
-              <span className="mr-4">{user.email}</span>
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded"
-              >
-                Logout
-              </button>
-            </>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="relative h-8 w-8 rounded-full"
+                >
+                  <Avatar className="h-8 w-8">
+                    {/* Add user avatar image if available */}
+                    {/* <AvatarImage src={user.avatarUrl} alt={user.name} /> */}
+                    <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">
+                      {user.name}
+                    </p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user.email}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/profile">Profile</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/snippets/new">New Snippet</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
-            <>
-              <Link href="/login" className="mr-4 hover:text-gray-300">
-                Login
-              </Link>
-              <Link href="/signup" className="hover:text-gray-300">
-                Sign Up
-              </Link>
-            </>
+            <nav className="hidden md:flex items-center space-x-2">
+              <Button asChild variant="ghost">
+                <Link href="/login">Login</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/signup">Sign Up</Link>
+              </Button>
+            </nav>
           )}
         </div>
       </div>
-    </nav>
+    </header>
   );
 };
 

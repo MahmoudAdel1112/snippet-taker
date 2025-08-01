@@ -1,107 +1,121 @@
-"use client";
-import React, { FormEvent, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { account } from "@/lib/appwrite"; // Import the centralized Appwrite account instance
-import { useAuth } from "@/context/AuthContext";
+'use client';
+/*
+ * Design: Modern & Clean Login
+ * - A centrally aligned card form on a muted background for focus.
+ * - Uses Shadcn UI components: Card, Input, Button, Label for a consistent and clean look.
+ * - The form is structured with a clear header, intuitive input fields, and a prominent login button.
+ * - Server-side error messages are displayed in a distinct, attention-grabbing alert box below the form fields.
+ */
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { account } from '@/lib/appwrite';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+
+import { toast } from "sonner";
+
+const loginSchema = z.object({
+  email: z.string().email({ message: "Invalid email address." }),
+  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 const LoginPage = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null); // State to hold error messages
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { user, loading, login } = useAuth();
 
+  const form = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
   useEffect(() => {
     if (user && !loading) {
-      router.push("/dashboard");
+      toast.info("You are already logged in. Please log out to access this page.");
+      router.push('/dashboard');
     }
   }, [user, loading, router]);
 
-  const handleLogin = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null); // Reset error state on new submission
-
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters long.");
-      return;
-    }
-
+  const onSubmit = async (data: LoginFormValues) => {
+    setError(null);
     try {
-      await account.createEmailPasswordSession(email, password);
+      await account.createEmailPasswordSession(data.email, data.password);
       const userAccount = await account.get();
       if (userAccount) {
         login(userAccount);
-        router.prefetch("/dashboard");
-        router.push("/dashboard");
+        router.push('/dashboard');
       }
     } catch (err) {
-      // On failure, display a user-friendly error message
       setError("Invalid email or password. Please try again.");
-      console.error(err); // Log the actual error for debugging
+      console.error(err);
     }
   };
 
   if (loading || user) {
-    return <div className="min-h-screen bg-neutral-100 flex items-center justify-center">Loading...</div>;
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h2 className="text-neutral-900 text-2xl font-bold mb-6 text-center">
-          Login
-        </h2>
-        <form onSubmit={handleLogin}>
-          <div className="mb-4">
-            <label
-              className="block text-sm font-medium text-neutral-700"
-              htmlFor="email"
-            >
-              Email
-            </label>
-            <input
-              className="w-full p-2 mt-1 bg-neutral-100 border border-neutral-300 rounded-md text-neutral-900 focus:ring-primary focus:border-primary"
-              type="email"
-              id="email"
-              name="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="mb-6">
-            <label
-              className="block text-sm font-medium text-neutral-700"
-              htmlFor="password"
-            >
-              Password
-            </label>
-            <input
-              className="w-full p-2 mt-1 bg-neutral-100 border border-neutral-300 rounded-md text-neutral-900 focus:ring-primary focus:border-primary"
-              type="password"
-              id="password"
-              name="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
+    <div className="flex items-center justify-center min-h-screen bg-background">
+      <Card className="w-full max-w-md mx-4">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardDescription>Enter your credentials to access your account</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="name@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="********" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          {/* Display error message if it exists */}
-          {error && (
-            <div className="bg-error/20 text-error p-3 rounded-md mb-4 text-sm">
-              {error}
-            </div>
-          )}
+              {error && (
+                <div className="bg-destructive/15 text-destructive p-3 rounded-md text-sm">
+                  {error}
+                </div>
+              )}
 
-          <button
-            className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded transition-colors duration-200"
-            type="submit"
-          >
-            Login
-          </button>
-        </form>
-      </div>
+              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? 'Logging in...' : 'Login'}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   );
 };
