@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { account } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,13 +32,7 @@ const Navbar = () => {
     }
   };
 
-  const getInitials = (name: string = "") => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
-  };
+  
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -88,8 +82,10 @@ const Navbar = () => {
                 >
                   <Avatar className="h-8 w-8">
                     {/* Add user avatar image if available */}
-                    {/* <AvatarImage src={user.avatarUrl} alt={user.name} /> */}
-                    <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                    <AvatarImage src={user.prefs?.avatar} />
+                  <AvatarFallback>
+                    {user?.name?.substring(0, 2).toUpperCase() ?? ""}
+                  </AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>

@@ -24,7 +24,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<Models.User<Models.Preferences> | null>(
     null
   );
-  const [loading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const checkUser = useCallback(async () => {
     try {
@@ -33,6 +33,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Failed to fetch user session:", error);
       setUser(null);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
